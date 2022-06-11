@@ -4,12 +4,12 @@ const bodyParser = require("body-parser");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
-const port=5000;
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
 /////////////get \\\\\\\\\\\\
-app.get("/getitem",(req,res)=>{
+app.get("/getusers",(req,res)=>{
   const sqlSelect = "SELECT name,email,role FROM users";
   db.query(sqlSelect ,(result,err)=>{
       if(result){
@@ -21,8 +21,8 @@ app.get("/getitem",(req,res)=>{
   } )
   });
 
-////////////////////Login\\\\\\\\\\\\\\\\
-app.post("/insertLogin", (req, res) => {
+/////////////Login\\\\\\\\\\\\\\\\
+app.post("/Login", (req, res) => {
   const email1 = req.body.email;
   const password1 = req.body.password;
   console.log(req);
@@ -65,36 +65,172 @@ app.post("/insertuser", (req, res) => {
 
 ////////////////adding orders\\\\\\\\\\\\\\\\\\
 app.post("/addorder", (req, res) => {
-  const name = req.body.name;
   const email = req.body.email;
   const total = req.body.total;
-  const tel = req.body.tel;
+  const role = req.body.role;
+  const mobile = req.body.mobile;
+  const quantity = req.body.quantity;
+  const item_id = req.body.item_id;
   const sqlSelect = "SELECT id FROM users WHERE email=?";
-  db.query(sqlSelect, [doctor], (err, result) => {
+  if(role>1){
+  db.query(sqlSelect, [email], (err, result) => {
     if (result) {
-      let doctor_id = Object.values(JSON.parse(JSON.stringify(result)));
+      let [user_id] = result;
+      let {id} = user_id;
+      const sqlInsert = "INSERT INTO orders (user_id,total,mobile) VALUES (?,?,?)";
+      db.query(sqlInsert,[id, total, mobile], (err, result) => {
+          if(result){
+          res.send(result)
 
-      const sqlInsert =
-        "INSERT INTO appointments (user_id,doctor_id,mobile,date,clock) VALUES (?,?,?,?,?)";
-      db.query(
-        sqlInsert,
-        [username, doctor_id[0].id, tel, date, time],
-        (err, result) => {
-          console.log(err);
-        }
-      );
+          //////get order_id from orders \\\\\\\\\
+          const sqlSelect = "SELECT id FROM orders WHERE user_id=? AND mobile=?";
+                if(result){
+                  db.query(sqlSelect, [id,mobile], (err, result) => {
+                  let [order_id] = result;
+                  let {id} = order_id;
+                  const sqlInsert = "INSERT INTO order_item (order_id,item_id,quantity) VALUES (?,?,?)";
+                  db.query(sqlInsert,[id, item_id, quantity], (err, result) => {
+                      if(result)
+                      res.send(result)
+                      if(err)
+                      console.log(err)
+                      })
+                  })}
+
+                      }
+
+              if(err)
+              console.log(err)
+        
+    });
     }
   });
+  }
+});
+
+///////get all stores\\\\\\
+app.get("/getstores",(req,res)=>{
+      const sqlSelect = "SELECT  store.name , users.name as owner, store.image, store.description FROM store JOIN users ON store.user_id = users.id ";
+      db.query(sqlSelect ,(result,err)=>{
+          if(result){
+              console.log(result);
+              res.send(result);
+          }else{
+          res.send(err);
+          }
+      } )
+  });
+
+
+///////get store and owner info and all items of that store\\\\\\
+app.get('/store/product/:id',(req,res)=>{
+  const {id} = req.params;
+  const sqlSelect = "SELECT item.name as product_name, item.price, item.url_imag as product_image, item.description as product_description, store.name as store_name, store.image as store_image, store.description as store_description FROM item LEFT JOIN store ON store.id=item.store_id WHERE item.store_id=? ";
+  db.query(sqlSelect ,[id],(result,err)=>{
+    if(result){ 
+      res.send(result);
+    }else{
+      res.send(err);
+    }
+  })
+
+});
+
+/////////create store\\\\\\//////////////////\\\\\\\\\\\\\\\\\\\\\\\\\\
+app.post('/insert/store',(req,res)=>{
+  const id = req.body.user_id;
+  const name = req.body.name;
+  const image = req.body.image;
+  const description = req.body.description;
+  const sqlSelect = "INSERT INTO store(name,user_id,image,description) VALUES (?,?,?,?)";
+  db.query(sqlSelect ,[name,id,image,description],(result,err)=>{
+    if(result){ 
+      res.send(result);
+    }else{
+      res.send(err);
+    }
+  })
+
 });
 
 
-// app.listen(3001, () => {
-//   console.log("server running on port 3001");
-// });
-// app.get("/", (req, res) => {
-//   res.json({ message: "ok" });
-// });
 
+
+
+/////////add products\\\\\\//////////////////\\\\\\\\\\\\\\\\\\\\\\\\\\
+app.post('/insert/product',(req,res)=>{
+  const store_id = req.body.store_id;
+  const name = req.body.name;
+  const price = req.body.price;
+  const image = req.body.url_imag;
+  const description = req.body.description;
+  const sqlSelect = "INSERT INTO item(name,store_id,price,url_imag,description) VALUES (?,?,?,?,?)";
+  db.query(sqlSelect ,[name,store_id,price,image,description],(result,err)=>{
+    if(result){ 
+      res.send(result);
+    }else{
+      res.send(err);
+    }
+  })
+
+});
+
+////////delete product \\\\\\\\\\\\\\
+app.delete('/delete/product/:id',(req,res)=>{
+  const {id} = req.params;
+
+  const sqlSelect = "DELETE FROM item where id=?";
+  db.query(sqlSelect ,[id],(result,err)=>{
+    if(result){ 
+      res.send(result);
+    }else{
+      res.send(err);
+    }
+  })
+
+});
+
+
+
+///////veiw all orders of user \\\\\\\\\\
+app.get('/get/orders/:id',(req,res)=>{
+  const {id} = req.params;
+
+  const sqlSelect = "SELECT orders.mobile as order_mobile, orders.total from orders where orders.user_id=?";
+  db.query(sqlSelect ,[id],(result,err)=>{
+    if(result){ 
+      res.send(result);
+    }else{
+      res.send(err);
+    }
+  })
+
+});
+
+
+
+
+
+
+
+/////////user infooooo \\\\\\\\\\\\\
+app.get('/user/:id',(req,res)=>{
+  const {id} = req.params;
+
+  const sqlSelect = "SELECT name,number,email,role from users where id=?";
+  db.query(sqlSelect ,[id],(result,err)=>{
+    if(result){ 
+      res.send(result);
+    }else{
+      res.send(err);
+    }
+  })
+
+});
+
+
+
+const port = 5000;
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });
